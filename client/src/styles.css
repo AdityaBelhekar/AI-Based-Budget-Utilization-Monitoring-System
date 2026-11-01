@@ -1,0 +1,100 @@
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+
+:root {
+  --paper: #f7f5f0;
+  --ink: #1c1f24;
+  --muted: #5c6068;
+  --rule: #d9d5cb;
+  --accent: #1f3a5f;
+  --critical: #b3261e;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--sans);
+}
+
+h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; line-height: 1.3; }
+p { margin: 0 0 12px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.muted { color: var(--muted); }
+.figure { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 14px; }
+
+input {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-bottom: 16px;
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  height: 40px;
+  padding: 0 20px;
+  background: var(--accent);
+  border: 0;
+  border-radius: 2px;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.6; cursor: default; }
+button.link {
+  height: auto;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 400;
+  text-decoration: underline;
+}
+
+.error { min-height: 22px; margin-bottom: 12px; color: var(--critical); }
+
+.login { max-width: 400px; margin: 0 auto; padding: 14vh 16px 32px; }
+.login form { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--ink); }
+
+.shell { display: flex; min-height: 100vh; }
+.rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 188px;
+  padding: 20px 16px;
+  border-right: 1px solid var(--rule);
+}
+.rail-title { margin-bottom: 24px; font-weight: 600; }
+.rail a { padding: 6px 0; color: var(--ink); text-decoration: none; }
+.rail a:hover { text-decoration: underline; }
+.rail a.current { box-shadow: inset 2px 0 var(--accent); margin-left: -16px; padding-left: 14px; font-weight: 600; }
+.rail-foot { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 14px; }
+.page { flex: 1; min-width: 0; max-width: 1120px; padding: 28px 32px; }
+
+/* The utilization bar's time-elapsed mark, the product's signature element. */
+.pace { position: relative; height: 14px; margin: 16px 0 24px; max-width: 480px; background: var(--rule); }
+.pace-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink); }
+
+@media (max-width: 767px) {
+  .shell { flex-direction: column; }
+  .rail { width: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .rail-title { margin-bottom: 8px; }
+  .rail-foot { margin-top: 12px; }
+  .page { padding: 20px 16px; }
+}
