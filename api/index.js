@@ -2,7 +2,8 @@
 import { createApp } from '../server/src/app.js';
 import { connectDb } from '../server/src/db.js';
 
-const { MONGODB_URI, SESSION_SECRET, CRON_SECRET } = process.env;
+// Trimmed, because a value pasted into the Vercel dashboard or piped in can carry a trailing line break.
+const [MONGODB_URI, SESSION_SECRET, CRON_SECRET] = ['MONGODB_URI', 'SESSION_SECRET', 'CRON_SECRET'].map((k) => process.env[k]?.trim());
 
 const ready = (async () => {
   if (!MONGODB_URI || !SESSION_SECRET) throw new Error('MONGODB_URI and SESSION_SECRET must be set in the Vercel project');

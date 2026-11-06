@@ -1,0 +1,7 @@
+node_modules
+.angular
+client/dist
+.agents
+.claude
+.git
+.env*
