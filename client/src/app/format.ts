@@ -42,5 +42,13 @@ const startYearNow = () => {
 };
 const label = (start: number) => `${start}-${String(start + 1).slice(2)}`;
 export const currentFinancialYear = () => label(startYearNow());
+// Today's place in the financial year, in India: for the sign-in page, before any data is loaded.
+export function yearPositionToday() {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const start = Date.UTC(startYearNow(), 3, 1);
+  const day = (Date.parse(today) - start) / 864e5 + 1;
+  const days = (Date.UTC(startYearNow() + 1, 3, 1) - start) / 864e5;
+  return { financialYear: currentFinancialYear(), day, days, pct: Math.round((day / days) * 10000) / 100 };
+}
 // Published data starts in 2019-20.
 export const financialYears = () => Array.from({ length: startYearNow() - 2019 + 1 }, (_, i) => label(startYearNow() - i));

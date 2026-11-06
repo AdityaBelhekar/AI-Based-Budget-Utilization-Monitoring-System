@@ -130,14 +130,14 @@ export class MonthlyBars {
     <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center">
       <svg class="chart" viewBox="-110 -110 220 220" style="width: 180px" role="img" [attr.aria-label]="label()">
         @for (s of slices(); track s.category) {
-          <path [attr.d]="s.path" fill="var(--ink)" [attr.fill-opacity]="s.shade" stroke="var(--surface)" stroke-width="2" />
+          <path [attr.d]="s.path" fill="var(--brand)" [attr.fill-opacity]="s.shade" stroke="var(--surface)" stroke-width="2" />
         }
       </svg>
       <ul class="legend" style="flex: 1; min-width: 180px">
         @for (s of slices(); track s.category) {
           <li>
-            <span><span class="swatch" style="background: var(--ink)" [style.opacity]="s.shade"></span>{{ s.category }}</span>
-            <span class="strong">{{ s.paise }} paise</span>
+            <span><span class="swatch" style="background: var(--brand)" [style.opacity]="s.shade"></span>{{ s.category }}</span>
+            <span><span class="paise">{{ s.paise }}</span> <span class="muted small">paise</span></span>
           </li>
         }
       </ul>

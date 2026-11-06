@@ -11,6 +11,8 @@ const reportQuery = z.object({ format: z.enum(['csv', 'pdf', 'json']).default('j
 
 const crore = (paise) => (paise / 1e9).toFixed(2);
 const rupees = (paise) => (paise / 100).toFixed(2);
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const day = (date) => `${Number(date.slice(8))} ${MONTHS[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
 const STATUS = { behind: 'Behind pace', ahead: 'Ahead of pace', on: 'On pace', over: 'Over budget' };
 
 // A spreadsheet runs a cell starting with = + - @ as a formula, so text cells get a leading quote.
@@ -26,7 +28,7 @@ const REPORTS = {
   async utilization(user, view) {
     const rows = await positionRows(user, view);
     return {
-      title: `Budget utilization, ${view.financialYear}, as at ${view.asOf}`,
+      title: `Budget utilization at ${day(view.asOf)}`,
       columns: [
         { key: 'department', label: 'Budget head', width: 150 },
         { key: 'allocated', label: 'Allocated (Rs crore)', width: 80, align: 'right' },
@@ -61,7 +63,7 @@ const REPORTS = {
     ]);
     const names = new Map(departments.map((d) => [d._id.toString(), d.name]));
     return {
-      title: `Expenditure ledger, ${view.financialYear}, to ${view.asOf}`,
+      title: `Expenditure ledger to ${day(view.asOf)}`,
       columns: [
         { key: 'date', label: 'Date', width: 60 },
         { key: 'department', label: 'Budget head', width: 120 },
@@ -87,7 +89,7 @@ const REPORTS = {
     if (isHead(user)) filter.departmentId = user.departmentId;
     const alerts = await Alert.find(filter).sort({ severityRank: -1, detectedAt: -1 }).populate('departmentId', 'name').lean();
     return {
-      title: `Alerts, ${view.financialYear}`,
+      title: `Alerts raised in ${view.financialYear}`,
       columns: [
         { key: 'detected', label: 'Detected', width: 60 },
         { key: 'department', label: 'Budget head', width: 110 },

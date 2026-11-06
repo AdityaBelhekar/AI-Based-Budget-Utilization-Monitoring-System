@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Api, errorText, PositionRow, View } from './api';
 import { RupeePie, TrendChart } from './charts';
 import { crore, day, monthLong, pct, signedCrore, signedPts } from './format';
-import { MonthStrip, PaceBar, StatusWord, YearPicker } from './ui';
+import { MonthStrip, PaceBar, PaceRings, StatusWord, YearPicker } from './ui';
 
 interface Summary extends View {
   rows: PositionRow[];
@@ -14,30 +14,49 @@ type SortKey = 'gap' | 'name' | 'allocated' | 'used';
 
 @Component({
   selector: 'app-overview',
-  imports: [RouterLink, PaceBar, StatusWord, MonthStrip, YearPicker, TrendChart, RupeePie],
+  imports: [RouterLink, PaceBar, PaceRings, StatusWord, MonthStrip, YearPicker, TrendChart, RupeePie],
   template: `
     @if (error()) {
       <p class="error" role="alert">{{ error() }}</p>
     }
     @if (data(); as d) {
-      <div class="page-head">
+      <section class="hero">
         <div>
           <h1>{{ finding() }}</h1>
-          <p class="muted" style="margin: 0">
-            Position at {{ day(d.asOf) }}, day {{ d.dayOfYear }} of {{ d.daysInYear }}.
+          <p class="lede">
+            {{ lede() }} Position at {{ day(d.asOf) }}.
             @if (d.publishedThrough) {
-              CGA figures are published through {{ monthLong(d.publishedThrough) }}.
+              CGA has published figures through {{ monthLong(d.publishedThrough) }}.
             }
           </p>
+          <div class="hero-meta">
+            <app-year [value]="d.financialYear" (pick)="go({ fy: $event, month: null })" />
+          </div>
         </div>
-        <app-year [value]="d.financialYear" (pick)="go({ fy: $event, month: null })" />
-      </div>
+        @if (d.rows.length) {
+          <figure class="rings-figure">
+            <app-rings [elapsed]="d.elapsedPct" [utilization]="d.totals.utilizationPct" [status]="totalStatus()" [size]="176" [centre]="'' + d.dayOfYear" [centreSub]="'of ' + d.daysInYear + ' days'" />
+            <dl class="rings-key">
+              <div>
+                <dt><span class="key-dot" style="background: var(--time)"></span>Year passed</dt>
+                <dd>{{ pct(d.elapsedPct) }}</dd>
+              </div>
+              <div>
+                <dt><span class="key-dot" [style.background]="ringColour()"></span>Spent, all heads</dt>
+                <dd>{{ pct(d.totals.utilizationPct) }}</dd>
+              </div>
+            </dl>
+          </figure>
+        }
+      </section>
 
       <app-months [months]="d.months" [selected]="d.month" (pick)="go({ month: $event })" />
-      <p class="small muted" style="margin-bottom: 20px">Step through the year to see the position at the end of any month.</p>
 
-      <section class="panel panel-flush" aria-labelledby="heads">
-        <h2 id="heads" class="visually-hidden">Budget heads ranked by distance from pace</h2>
+      <section class="panel panel-flush" style="margin-top: 24px" aria-labelledby="heads">
+        <div class="panel-head">
+          <h2 id="heads">Budget heads, furthest from pace first</h2>
+          <p class="small muted">The mark on each bar is how much of the year has passed.</p>
+        </div>
         @if (sorted().length) {
           <table>
             <thead>
@@ -89,7 +108,7 @@ type SortKey = 'gap' | 'name' | 'allocated' | 'used';
           </section>
           <section class="panel">
             <h2>Where each rupee went</h2>
-            <p class="small muted">Spending to {{ day(d.asOf) }} by category, in paise per rupee.</p>
+            <p class="small muted" style="margin-bottom: 20px">Spending to {{ day(d.asOf) }} by category, in paise of every rupee.</p>
             <app-rupee-pie [data]="slices()" />
           </section>
         </div>
@@ -168,8 +187,10 @@ export class Overview {
     const d = this.data();
     if (!d?.rows.length) return `Financial year ${d?.financialYear ?? ''}`;
     const off = d.rows.filter((r) => r.status !== 'on').length;
-    if (d.rows.length === 1) return `${d.rows[0].departmentName} is ${off ? 'off pace' : 'on pace'}`;
-    return off ? `${off} of ${d.rows.length} budget heads ${off === 1 ? 'is' : 'are'} off pace` : `All ${d.rows.length} budget heads are on pace`;
+    const words = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const n = (x: number) => words[x] ?? String(x);
+    if (d.rows.length === 1) return `${d.rows[0].departmentName} is ${off ? 'off pace' : 'on pace'}.`;
+    return off ? `${n(off)} of ${n(d.rows.length).toLowerCase()} budget heads ${off === 1 ? 'is' : 'are'} off pace.` : `All ${n(d.rows.length).toLowerCase()} budget heads are on pace.`;
   });
 
   protected monthsOfYear = computed(() => this.data()?.months.map((m) => m.month) ?? []);
@@ -179,6 +200,16 @@ export class Overview {
     const gap = d.totals.utilizationPct - d.elapsedPct;
     return gap < -15 ? 'behind' : gap > 15 ? 'ahead' : 'on';
   });
+  // The one sentence under the headline: the head furthest from pace, in plain words.
+  protected lede = computed(() => {
+    const d = this.data();
+    const worst = d?.rows.filter((r) => r.status !== 'on').sort((a, b) => Math.abs(b.gapPts) - Math.abs(a.gapPts))[0];
+    if (!d || !worst) return '';
+    if (worst.status === 'over') return `${worst.departmentName} has spent ${pct(worst.utilizationPct)} of its allocation.`;
+    return `${worst.departmentName} has used ${pct(worst.utilizationPct)} with ${pct(d.elapsedPct)} of the year gone, ${Math.abs(worst.gapPts).toFixed(2)} points ${worst.gapPts < 0 ? 'behind' : 'ahead of'} pace.`;
+  });
+  protected ringColour = computed(() => (({ behind: 'var(--behind)', ahead: 'var(--ahead)', over: 'var(--over)' }) as Record<string, string>)[this.totalStatus()] ?? 'var(--spent)');
+
   protected trendTitle = computed(() => {
     const d = this.data();
     if (!d) return '';

@@ -5,7 +5,7 @@ import { Alert, Api, Department as Dept, errorText, PositionRow, View } from './
 import { Auth } from './auth';
 import { MonthlyBars, TrendChart } from './charts';
 import { ALERT_TYPES, crore, day, money, pct, signedPts } from './format';
-import { MonthStrip, PaceBar, StatusWord, YearPicker } from './ui';
+import { MonthStrip, PaceBar, PaceRings, StatusWord, YearPicker } from './ui';
 
 interface DepartmentView extends View {
   department: Dept;
@@ -17,40 +17,63 @@ interface DepartmentView extends View {
 
 @Component({
   selector: 'app-department',
-  imports: [RouterLink, PaceBar, StatusWord, MonthStrip, YearPicker, MonthlyBars, TrendChart],
+  imports: [RouterLink, PaceBar, PaceRings, StatusWord, MonthStrip, YearPicker, MonthlyBars, TrendChart],
   template: `
     @if (error()) {
       <p class="error" role="alert">{{ error() }}</p>
     }
     @if (data(); as d) {
-      <p class="small"><a routerLink="/" [queryParams]="{ fy: d.financialYear, month: d.month }">Overview</a></p>
-      <div class="page-head">
+      <a class="crumb" routerLink="/" [queryParams]="{ fy: d.financialYear, month: d.month }">Overview</a>
+      <section class="hero">
         <div>
           <h1>{{ d.department.name }}</h1>
-          <p class="muted" style="margin: 0">{{ d.department.sourceNote }}</p>
+          <p class="lede">
+            @if (d.position; as p) {
+              {{ finding(p) }}
+            }
+            {{ d.department.sourceNote }}
+          </p>
+          <div class="hero-meta">
+            <app-year [value]="d.financialYear" (pick)="go({ fy: $event, month: null })" />
+            @if (d.position; as p) {
+              <app-status [value]="p.status" />
+            }
+          </div>
         </div>
-        <app-year [value]="d.financialYear" (pick)="go({ fy: $event, month: null })" />
-      </div>
+        @if (d.position; as p) {
+          <figure class="rings-figure">
+            <app-rings [elapsed]="p.elapsedPct" [utilization]="p.utilizationPct" [status]="p.status" [size]="176" [centre]="pct(p.utilizationPct)" [centreSub]="'spent'" />
+            <dl class="rings-key">
+              <div>
+                <dt><span class="key-dot" style="background: var(--time)"></span>Year passed</dt>
+                <dd>{{ pct(d.elapsedPct) }}</dd>
+              </div>
+              <div>
+                <dt><span class="key-dot" [style.background]="ringColour(p.status)"></span>Allocation spent</dt>
+                <dd>{{ pct(p.utilizationPct) }}</dd>
+              </div>
+            </dl>
+          </figure>
+        }
+      </section>
       <app-months [months]="d.months" [selected]="d.month" (pick)="go({ month: $event })" />
 
       @if (d.position; as p) {
-        <section class="panel" style="margin-top: 16px">
-          <h2>{{ finding(p) }}</h2>
-          <dl class="figures">
+        <section class="panel" style="margin-top: 24px">
+          <dl class="figures" style="margin-bottom: 22px">
             <div><dt>Allocated</dt><dd>{{ money(p.allocatedPaise) }}</dd></div>
             <div><dt>Spent to {{ day(d.asOf) }}</dt><dd>{{ money(p.spentPaise) }}</dd></div>
             <div><dt>Remaining</dt><dd>{{ money(p.remainingPaise) }}</dd></div>
-            <div><dt>Year passed</dt><dd>{{ pct(d.elapsedPct) }}</dd></div>
-            <div><dt>Status</dt><dd><app-status [value]="p.status" /></dd></div>
+            <div><dt>{{ p.gapPaise < 0 ? 'Unspent against an even pace' : 'Ahead of an even pace' }}</dt><dd [class]="p.status === 'on' ? '' : 'gap-' + p.status">{{ money(Math.abs(p.gapPaise)) }}</dd></div>
           </dl>
           <app-pace [utilization]="p.utilizationPct" [elapsed]="p.elapsedPct" [status]="p.status" [large]="true" />
-          <p class="small muted" style="margin: 12px 0 0">
+          <p class="small muted" style="margin: 14px 0 0">
             The mark shows how much of the year has passed. The pace limit for this head is {{ p.paceLimitPts }} points.
             @if (p.sourceUrl) {
-              <a [href]="p.sourceUrl" target="_blank" rel="noopener">Source: CGA</a>
+              <a [href]="p.sourceUrl" target="_blank" rel="noopener">Source: CGA monthly accounts</a>
             }
           </p>
-          <div class="toolbar" style="margin-top: 16px">
+          <div class="toolbar" style="margin-top: 20px">
             @if (canSpend) {
               <a class="button secondary" routerLink="/expenditure" [queryParams]="{ departmentId: d.department.id, fy: d.financialYear }">Expenditure records</a>
             }
@@ -73,11 +96,11 @@ interface DepartmentView extends View {
       }
 
       <section class="panel panel-flush">
-        <h2 style="padding: 16px 16px 0">Open alerts</h2>
+        <div class="panel-head"><h2>Open alerts</h2></div>
         @for (a of d.alerts; track a.id) {
           <div class="alert-item">
             <div>
-              <p class="strong" style="margin-bottom: 2px">{{ types[a.type] }}</p>
+              <p class="title">{{ types[a.type] }}</p>
               <p style="margin-bottom: 4px">{{ a.message }}</p>
               <div class="alert-meta"><app-status [value]="a.severity" /> <span>Detected at {{ day(a.detectedAt) }}</span> <span>{{ a.status === 'open' ? 'Open' : 'Acknowledged' }}</span></div>
             </div>
@@ -90,7 +113,7 @@ interface DepartmentView extends View {
 
       @if (d.projects.length) {
         <section class="panel panel-flush">
-          <h2 style="padding: 16px 16px 0">Projects</h2>
+          <div class="panel-head"><h2>Projects</h2></div>
           <table>
             <thead><tr><th>Project</th><th class="num">Allocated, Rs crore</th><th class="num">Spent, Rs crore</th><th class="num">Used</th></tr></thead>
             <tbody>
@@ -155,7 +178,9 @@ export class DepartmentPage {
   protected monthsOfYear = computed(() => this.data()?.months.map((m) => m.month) ?? []);
   protected finding = (p: PositionRow) =>
     p.status === 'over'
-      ? `Over budget: ${pct(p.utilizationPct)} of the allocation spent`
-      : `${pct(p.utilizationPct)} used with ${pct(p.elapsedPct)} of the year passed, ${Math.abs(p.gapPts).toFixed(2)} points ${p.gapPts < 0 ? 'behind' : 'ahead of'} pace (${money(Math.abs(p.gapPaise))})`;
+      ? `Over budget, with ${pct(p.utilizationPct)} of the allocation spent.`
+      : `${pct(p.utilizationPct)} used with ${pct(p.elapsedPct)} of the year passed, ${Math.abs(p.gapPts).toFixed(2)} points ${p.gapPts < 0 ? 'behind' : 'ahead of'} pace.`;
   protected signedPts = signedPts;
+  protected Math = Math;
+  protected ringColour = (status: string) => (({ behind: 'var(--behind)', ahead: 'var(--ahead)', over: 'var(--over)' }) as Record<string, string>)[status] ?? 'var(--spent)';
 }

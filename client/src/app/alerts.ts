@@ -16,7 +16,7 @@ const STATUSES: Record<string, string> = { active: 'Needs a response', open: 'Op
     <div class="page-head">
       <div>
         <h1>Alerts</h1>
-        <p class="muted" style="margin: 0">Each alert gives the rule, the figures and the threshold it crossed. Most serious first.</p>
+        <p class="lede">Each alert gives the rule, the figures and the threshold it crossed. Most serious first.</p>
       </div>
     </div>
     <p class="status-line" role="status">{{ status() }}</p>
@@ -60,7 +60,7 @@ const STATUSES: Record<string, string> = { active: 'Needs a response', open: 'Op
       @for (a of page()?.items ?? []; track a.id) {
         <article class="alert-item">
           <div>
-            <p class="strong" style="margin-bottom: 2px">
+            <p class="title">
               {{ types[a.type] }}:
               <a [routerLink]="['/departments', a.departmentId.id]" [queryParams]="{ fy: a.financialYear }">{{ a.departmentId.name }}</a>
             </p>

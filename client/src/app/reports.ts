@@ -33,7 +33,7 @@ interface Kpis {
     <div class="page-head">
       <div>
         <h1>Reports</h1>
-        <p class="muted" style="margin: 0">Downloads use the same figures as the screen.</p>
+        <p class="lede">Downloads use the same figures as the screen.</p>
       </div>
       <app-year [value]="fy()" (pick)="setQuery({ fy: $event, month: null })" />
     </div>
@@ -50,7 +50,7 @@ interface Kpis {
     }
 
     <div class="page-head" style="margin-top: 16px">
-      <p class="muted" style="margin: 0">{{ reports[type()].about }}</p>
+      <p class="lede">{{ reports[type()].about }}</p>
       <div class="toolbar">
         <a class="button" [href]="download('csv')" download>Download CSV</a>
         <a class="button secondary" [href]="download('pdf')" download>Download PDF</a>
@@ -62,9 +62,9 @@ interface Kpis {
 
     @if (report(); as r) {
       <section class="panel panel-flush">
-        <h2 style="padding: 16px 16px 0">{{ r.title }}</h2>
-        <p class="small muted" style="padding: 0 16px">{{ r.note }}{{ r.rows.length > previewRows ? ' The preview shows the first ' + previewRows + ' rows; the download has all of them.' : '' }}</p>
-        <table>
+        <div class="panel-head"><h2>{{ r.title }}</h2></div>
+        <p class="small muted" style="padding: 0 24px 8px">{{ r.note }}{{ r.rows.length > previewRows ? ' The preview shows the first ' + previewRows + ' rows; the download has all of them.' : '' }}</p>
+        <table class="report">
           <thead>
             <tr>
               @for (c of r.columns; track c.key) {

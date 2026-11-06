@@ -25,7 +25,7 @@ interface Doc {
     <div class="page-head">
       <div>
         <h1>Expenditure</h1>
-        <p class="muted" style="margin: 0">Every record is kept. A mistake is corrected by reversing it, never by editing.</p>
+        <p class="lede">Every record is kept. A mistake is corrected by reversing it, never by editing.</p>
       </div>
       <div class="toolbar">
         <button type="button" (click)="openEntry()">Record expense</button>
@@ -86,7 +86,7 @@ interface Doc {
             <th>Budget head</th>
             <th class="hide-compact">Category</th>
             <th>Description</th>
-            <th class="num">Amount, Rs</th>
+            <th class="num">Amount</th>
             <th><span class="visually-hidden">Details</span></th>
           </tr>
         </thead>
@@ -94,10 +94,10 @@ interface Doc {
           @for (t of page()?.items ?? []; track t.id) {
             <tr>
               <td class="nowrap">{{ day(t.date.slice(0, 10)) }}</td>
-              <td>{{ budgetLabel(t) }}<span class="sub">{{ kinds[t.kind] }}</span></td>
+              <td class="name">{{ budgetLabel(t) }}<span class="sub">{{ kinds[t.kind] }}</span></td>
               <td class="hide-compact">{{ t.category }}</td>
               <td>{{ t.description }}@if (t.payee) {<span class="sub">{{ t.payee }}</span>}</td>
-              <td class="num" [class.muted]="t.amountPaise < 0">{{ rupees(t.amountPaise) }}</td>
+              <td class="num strong" [class.muted]="t.amountPaise < 0">{{ money(t.amountPaise) }}</td>
               <td class="num"><button type="button" class="link" (click)="openDetail(t)">Details</button></td>
             </tr>
           } @empty {

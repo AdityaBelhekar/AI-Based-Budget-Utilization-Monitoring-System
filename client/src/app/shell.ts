@@ -2,40 +2,45 @@ import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Api } from './api';
 import { Auth, ROLE_LABELS, Role } from './auth';
+import { BrandMark, Icon } from './ui';
 
 const ALERT_POLL_MS = 60_000;
-const NAV: { path: string; label: string; roles: Role[] }[] = [
-  { path: '/', label: 'Overview', roles: ['admin', 'finance_officer', 'department_head'] },
-  { path: '/alerts', label: 'Alerts', roles: ['admin', 'finance_officer', 'department_head'] },
-  { path: '/expenditure', label: 'Expenditure', roles: ['finance_officer', 'department_head'] },
-  { path: '/budgets', label: 'Budgets', roles: ['admin', 'finance_officer', 'department_head'] },
-  { path: '/reports', label: 'Reports', roles: ['admin', 'finance_officer', 'department_head'] },
-  { path: '/admin', label: 'Administration', roles: ['admin'] },
-  { path: '/admin', label: 'Audit log', roles: ['finance_officer'] },
+const NAV: { path: string; label: string; icon: string; roles: Role[] }[] = [
+  { path: '/', label: 'Overview', icon: 'overview', roles: ['admin', 'finance_officer', 'department_head'] },
+  { path: '/alerts', label: 'Alerts', icon: 'alerts', roles: ['admin', 'finance_officer', 'department_head'] },
+  { path: '/expenditure', label: 'Expenditure', icon: 'expenditure', roles: ['finance_officer', 'department_head'] },
+  { path: '/budgets', label: 'Budgets', icon: 'budgets', roles: ['admin', 'finance_officer', 'department_head'] },
+  { path: '/reports', label: 'Reports', icon: 'reports', roles: ['admin', 'finance_officer', 'department_head'] },
+  { path: '/admin', label: 'Administration', icon: 'admin', roles: ['admin'] },
+  { path: '/admin', label: 'Audit log', icon: 'audit', roles: ['finance_officer'] },
 ];
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, Icon, BrandMark],
   template: `
     <div class="shell">
-      <nav class="rail" aria-label="Main">
-        <p class="rail-title">Budget Monitor</p>
-        <nav>
+      <aside class="sidebar">
+        <a class="brand" routerLink="/">
+          <app-mark />
+          <span><span class="brand-name">Budget Monitor</span><span class="brand-sub">Union Government accounts</span></span>
+        </a>
+        <nav class="nav" aria-label="Main">
           @for (item of nav(); track item.label) {
             <a [routerLink]="item.path" routerLinkActive="current" [routerLinkActiveOptions]="{ exact: item.path === '/' }" ariaCurrentWhenActive="page">
+              <app-icon [name]="item.icon" />
               <span>{{ item.label }}</span>
               @if (item.path === '/alerts' && openAlerts()) {
-                <span class="strong" [attr.aria-label]="openAlerts() + ' open'">{{ openAlerts() }}</span>
+                <span class="count" [attr.aria-label]="openAlerts() + ' open'">{{ openAlerts() }}</span>
               }
             </a>
           }
         </nav>
-        <div class="rail-foot">
-          <p style="margin-bottom: 6px">{{ auth.user()?.name }}<br /><span class="muted">{{ role() }}</span></p>
+        <div class="sidebar-foot">
+          <p><span class="strong">{{ auth.user()?.name }}</span><br /><span class="muted">{{ role() }}</span></p>
           <button type="button" class="link" (click)="signOut()">Sign out</button>
         </div>
-      </nav>
+      </aside>
       <main class="page"><router-outlet /></main>
     </div>
   `,

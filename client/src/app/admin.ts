@@ -33,7 +33,7 @@ const FIELDS: { rule: string; key: string; label: string; unit: string }[] = [
     <div class="page-head">
       <div>
         <h1>Administration</h1>
-        <p class="muted" style="margin: 0">{{ isAdmin ? 'People, departments, alert thresholds and the audit log.' : 'The audit log of every financial and administrative change.' }}</p>
+        <p class="lede">{{ isAdmin ? 'People, departments, alert thresholds and the audit log.' : 'The audit log of every financial and administrative change.' }}</p>
       </div>
     </div>
     @if (isAdmin) {

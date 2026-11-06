@@ -14,7 +14,7 @@ import { YearPicker } from './ui';
     <div class="page-head">
       <div>
         <h1>Budgets</h1>
-        <p class="muted" style="margin: 0">Allocations for {{ fy() }}, with every change and its reason.</p>
+        <p class="lede">Allocations for {{ fy() }}, with every change and its reason.</p>
       </div>
       <div class="toolbar">
         <app-year [value]="fy()" (pick)="setQuery({ fy: $event })" />
