@@ -5,3 +5,5 @@ client/dist
 .claude
 .git
 .env*
+deploy-logins.txt
+go-live.ps1
