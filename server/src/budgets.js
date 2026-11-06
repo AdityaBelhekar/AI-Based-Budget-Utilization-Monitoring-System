@@ -3,8 +3,10 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { writeAudit } from './audit.js';
 import { requireRole } from './auth.js';
+import { todayInIndia } from './fy.js';
 import { HttpError, canSeeDepartment, fyLabel, isHead, objectId, pageQuery, paginate, safePaise } from './http.js';
 import { AuditLog, Budget, Department, ROLES, Transaction } from './models.js';
+import { scanAfterWrite } from './monitor.js';
 
 const quarterSplit = z.array(safePaise.nonnegative()).length(4);
 const budgetCreate = z
@@ -83,7 +85,7 @@ export function budgetRoutes() {
     assertSplit(body.quarterSplit, body.allocatedPaise);
     if (!(await Department.exists({ _id: body.departmentId, active: true }))) throw new HttpError(400, 'Unknown department');
     const budget = await mongoose.connection.transaction(async (session) => {
-      const [created] = await Budget.create([body], { session });
+      const [created] = await Budget.create([{ ...body, revisions: [{ date: todayInIndia(), allocatedPaise: body.allocatedPaise, reason: 'Created' }] }], { session });
       await assertProjectsFit(created, session);
       await writeAudit(session, req.user, { action: 'create', entity: 'budget', entityId: created._id, after: created.toJSON() });
       return created;
@@ -96,13 +98,15 @@ export function budgetRoutes() {
     const budget = await Budget.findById(objectId.parse(req.params.id));
     if (!budget) throw new HttpError(404, 'Not found');
     const before = budget.toJSON();
-    budget.set(changes);
+    if (changes.quarterSplit) budget.quarterSplit = changes.quarterSplit;
+    if (changes.allocatedPaise !== undefined && changes.allocatedPaise !== budget.allocatedPaise) budget.setAllocation(changes.allocatedPaise, todayInIndia(), reason);
     assertSplit(budget.quarterSplit, budget.allocatedPaise);
     await mongoose.connection.transaction(async (session) => {
       await budget.save({ session });
       await assertProjectsFit(budget, session);
       await writeAudit(session, req.user, { action: 'update', entity: 'budget', entityId: budget._id, before, after: budget.toJSON(), reason });
     });
+    await scanAfterWrite([budget._id]);
     res.json(budget);
   });
 

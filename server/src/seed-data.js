@@ -5,6 +5,8 @@ import { writeAudit } from './audit.js';
 import { parseCsvRecords } from './csv.js';
 import { Budget, Department, Transaction, initModels } from './models.js';
 import { croreToPaise } from './money.js';
+import { monthEnd } from './fy.js';
+import { replayPublishedHistory } from './monitor.js';
 import { recordTransactions } from './transactions.js';
 
 export const SEED_FILE = path.resolve(import.meta.dirname, '../../data/cga-monthly.csv');
@@ -17,11 +19,6 @@ const HEADS = {
   PETROLEUM: { name: 'Petroleum Subsidy', category: 'Subsidy', note: 'CGA budget head. Administered by the Ministry of Petroleum and Natural Gas (our mapping).' },
   INTEREST: { name: 'Interest Payments', category: 'Interest', note: 'CGA budget head covering Union Government interest payments.' },
   CAPEX: { name: 'Capital Expenditure', category: 'Capital works', note: 'CGA budget head covering all Union Government capital expenditure, not a single department.' },
-};
-
-const lastDayOf = (month) => {
-  const [y, m] = month.split('-').map(Number);
-  return new Date(Date.UTC(y, m, 0));
 };
 
 const readRows = () => parseCsvRecords(readFileSync(SEED_FILE, 'utf8')).records;
@@ -49,14 +46,14 @@ export async function seedPublishedData() {
       let budget = budgets.get(key);
       if (!budget) {
         [budget] = await Budget.create(
-          [{ financialYear: row.financial_year, departmentId: departments[row.head]._id, allocatedPaise, sourceUrl: row.source_url }],
+          [{ financialYear: row.financial_year, departmentId: departments[row.head]._id, allocatedPaise, sourceUrl: row.source_url, revisions: [{ date: monthEnd(row.month), allocatedPaise, reason: 'Budget Estimates' }] }],
           { session },
         );
         await writeAudit(session, null, { action: 'create', entity: 'budget', entityId: budget._id, after: budget.toJSON(), reason: `Budget Estimates, CGA statement for ${row.month}` });
         budgets.set(key, budget);
       } else if (budget.allocatedPaise !== allocatedPaise) {
         const before = budget.toJSON();
-        budget.allocatedPaise = allocatedPaise;
+        budget.setAllocation(allocatedPaise, monthEnd(row.month), row.basis === 'RE' ? 'Revised Estimates' : 'Budget figure changed');
         budget.sourceUrl = row.source_url;
         await budget.save({ session });
         await writeAudit(session, null, { action: 'update', entity: 'budget', entityId: budget._id, before, after: budget.toJSON(), reason: `${row.basis === 'RE' ? 'Revised Estimates' : 'Budget figure changed'} in CGA statement for ${row.month}` });
@@ -73,7 +70,7 @@ export async function seedPublishedData() {
         financialYear: row.financial_year,
         amountPaise,
         category: HEADS[row.head].category,
-        date: lastDayOf(row.month),
+        date: new Date(`${monthEnd(row.month)}T00:00:00Z`),
         description: `${HEADS[row.head].name}, ${row.month}, from CGA monthly accounts (provisional)`,
         sourceUrl: row.source_url,
       });
@@ -81,7 +78,9 @@ export async function seedPublishedData() {
     await recordTransactions(session, null, docs, 'import');
     await assertReconciles(rows, session);
   });
-  return { seeded: true, months: rows.length / Object.keys(HEADS).length };
+  // Outside the import transaction: alerts are derived, so a failure here never undoes the published figures.
+  const alertsRaised = await replayPublishedHistory();
+  return { seeded: true, months: rows.length / Object.keys(HEADS).length, alertsRaised };
 }
 
 // Every budget must end on exactly the last published allocation and year-to-date figure.
@@ -108,6 +107,6 @@ export async function assertReconciles(rows = readRows(), session = null) {
 if (process.argv[1] === import.meta.filename) {
   await mongoose.connect(process.env.MONGODB_URI);
   const result = await seedPublishedData();
-  console.log(result.seeded ? `Seeded ${result.months} months; totals reconcile` : 'Already seeded; nothing changed');
+  console.log(result.seeded ? `Seeded ${result.months} months; totals reconcile; ${result.alertsRaised} alerts from the history replay` : 'Already seeded; nothing changed');
   await mongoose.disconnect();
 }

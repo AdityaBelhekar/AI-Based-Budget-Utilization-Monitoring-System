@@ -1,4 +1,5 @@
 const DAY_MS = 864e5;
+const round2 = (n) => Math.round(n * 100) / 100;
 
 export const todayInIndia = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
 
@@ -9,20 +10,38 @@ export function financialYearOf(date) {
   return `${startYear}-${String(startYear + 1).slice(2)}`;
 }
 
+export function fyBounds(financialYear) {
+  const s = Number(financialYear.slice(0, 4));
+  return { start: `${s}-04-01`, end: `${s + 1}-03-31`, q4: `${s + 1}-01-01`, march: `${s + 1}-03-01` };
+}
+
+// The 12 months of a financial year as YYYY-MM, April first.
+export const fyMonths = (financialYear) => {
+  const s = Number(financialYear.slice(0, 4));
+  return Array.from({ length: 12 }, (_, i) => `${i < 9 ? s : s + 1}-${String(((i + 3) % 12) + 1).padStart(2, '0')}`);
+};
+
+export const monthEnd = (month) => {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+
+export const daysBetween = (from, to) => (Date.parse(to) - Date.parse(from)) / DAY_MS;
+
 export function isRealDate(text) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
   const parsed = new Date(`${text}T00:00:00Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === text;
 }
 
-// Evaluated in Asia/Kolkata whatever the server's zone.
-export function financialYearPosition(now = new Date()) {
-  const today = todayInIndia(now);
-  const [y, m, d] = today.split('-').map(Number);
-  const financialYear = financialYearOf(today);
-  const startYear = Number(financialYear.slice(0, 4));
-  const start = Date.UTC(startYear, 3, 1);
-  const dayOfYear = (Date.UTC(y, m - 1, d) - start) / DAY_MS + 1;
-  const daysInYear = (Date.UTC(startYear + 1, 3, 1) - start) / DAY_MS;
-  return { financialYear, dayOfYear, daysInYear, elapsedPct: Math.round((dayOfYear / daysInYear) * 10000) / 100 };
+// Where a YYYY-MM-DD date sits in its financial year, counting that day as passed.
+export function positionAt(date) {
+  const financialYear = financialYearOf(date);
+  const { start, end } = fyBounds(financialYear);
+  const dayOfYear = daysBetween(start, date) + 1;
+  const daysInYear = daysBetween(start, end) + 1;
+  return { financialYear, dayOfYear, daysInYear, elapsedPct: round2((dayOfYear / daysInYear) * 100) };
 }
+
+// Evaluated in Asia/Kolkata whatever the server's zone.
+export const financialYearPosition = (now = new Date()) => positionAt(todayInIndia(now));

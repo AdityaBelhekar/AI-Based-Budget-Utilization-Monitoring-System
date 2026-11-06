@@ -9,10 +9,12 @@ import { financialYearOf, isRealDate, todayInIndia } from './fy.js';
 import { HttpError, canSeeDepartment, fyLabel, isHead, objectId, pageQuery, paginate, safePaise } from './http.js';
 import { Budget, CATEGORIES, ROLES, Transaction } from './models.js';
 import { rupeesToPaise } from './money.js';
+import { scanAfterWrite } from './monitor.js';
 
 const MAX_IMPORT_ROWS = 5000;
 const IMPORT_COLUMNS = ['budget_id', 'date', 'amount_rupees', 'category', 'description', 'payee'];
-const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+// Vercel refuses request bodies over 4.5 MB, so the limit sits just under it.
+const MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
 const dateString = z.string().refine(isRealDate, 'Use a real date as YYYY-MM-DD');
 const expenseFields = {
@@ -153,6 +155,7 @@ export function transactionRoutes() {
     const budget = await findBudgetFor(req.user, body.budgetId);
     const doc = buildExpense(body, budget, req.user);
     const [created] = await mongoose.connection.transaction((session) => recordTransactions(session, req.user, [doc]));
+    await scanAfterWrite([created.budgetId]);
     res.status(201).json(created);
   });
 
@@ -160,6 +163,7 @@ export function transactionRoutes() {
     if (typeof req.body !== 'string') throw new HttpError(400, 'Send the file as text/csv');
     const docs = await buildImport(req.body, req.user);
     await mongoose.connection.transaction((session) => recordTransactions(session, req.user, docs, 'import'));
+    await scanAfterWrite([...new Set(docs.map((d) => d.budgetId.toString()))]);
     res.status(201).json({ imported: docs.length });
   });
 
@@ -187,6 +191,7 @@ export function transactionRoutes() {
     const [reversal] = await mongoose.connection.transaction((session) => recordTransactions(session, req.user, [doc], 'reverse')).catch((err) => {
       throw err.code === 11000 ? new HttpError(409, 'This transaction has already been reversed') : err;
     });
+    await scanAfterWrite([reversal.budgetId]);
     res.status(201).json(reversal);
   });
 
