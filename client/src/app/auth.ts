@@ -11,6 +11,7 @@ export interface User {
   email: string;
   role: Role;
   departmentId: string | null;
+  active?: boolean;
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -24,6 +25,11 @@ export class Auth {
   private http = inject(HttpClient);
   readonly user = signal<User | null>(null);
   private checked = false;
+
+  can(...roles: Role[]) {
+    const role = this.user()?.role;
+    return role ? roles.includes(role) : false;
+  }
 
   async restore(): Promise<User | null> {
     if (!this.checked) {

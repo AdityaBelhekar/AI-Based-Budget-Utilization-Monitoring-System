@@ -92,6 +92,14 @@ describe('rules', () => {
     assert.equal(find(run({ transactions: [a, { ...b, reversed: true }] }), 'possible_duplicate'), undefined);
   });
 
+  test('records after the as-of date still count for duplicates and large payments', () => {
+    const late = [tx('2025-01-10', 4_200), tx('2025-01-12', 4_200), tx('2025-01-15', 200_000)];
+    const findings = run({ asOf: '2024-12-31', transactions: [], events: late });
+    assert.ok(find(findings, 'possible_duplicate'));
+    assert.ok(findings.some((f) => f.type === 'spike' && f.periodKey.startsWith('txn-')));
+    assert.equal(find(findings, 'pace_deviation').evidence.spentPaise, 0, 'pace still ignores records after the as-of date');
+  });
+
   test('spike: a month far above its own history', () => {
     const history = ['2023-10', '2023-11', '2023-12', '2024-01', '2024-02', '2024-03'].map((month, i) => ({ month, amountPaise: 1000 + i * 50 }));
     const steady = [tx('2024-04-30', 1100, { kind: 'monthly_summary' }), tx('2024-05-31', 1150, { kind: 'monthly_summary' })];

@@ -36,6 +36,8 @@ export function mergeThresholds(...layers) {
 const round2 = (n) => Math.round(n * 100) / 100;
 const crore = (paise) => `Rs ${(paise / 1e9).toLocaleString('en-IN', { maximumFractionDigits: 2 })} crore`;
 const rupees = (paise) => `Rs ${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const day = (date) => `${Number(date.slice(8))} ${MONTHS[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
 const money = (paise) => (Math.abs(paise) >= 1e9 ? crore(paise) : rupees(paise));
 // Distance past the threshold, in the rule's own units, decides how serious it is.
 const bySize = (excess, [high, critical]) => (excess >= critical ? 'critical' : excess >= high ? 'high' : 'medium');
@@ -49,16 +51,19 @@ function median(values) {
 /**
  * transactions: this budget's records in its financial year up to asOf, as
  *   { id, kind, amountPaise, date: 'YYYY-MM-DD', category, reversed }.
+ * events: all of the year's records, including any after asOf. The duplicate and single-payment
+ *   checks are about the records themselves, so a lag in published figures must not hide them.
  * history: earlier months of the same series, as { month: 'YYYY-MM', amountPaise }.
  */
-export function evaluate({ financialYear, allocatedPaise, asOf, transactions, history = [], thresholds = DEFAULT_THRESHOLDS }) {
+export function evaluate({ financialYear, allocatedPaise, asOf, transactions, events = transactions, history = [], thresholds = DEFAULT_THRESHOLDS }) {
   const t = thresholds;
   const findings = [];
-  const add = (type, periodKey, severity, message, evidence) => findings.push({ type, periodKey, severity, message, evidence: { ...evidence, asOf } });
+  // Event findings are dated by the record that triggered them; the rest by the date being judged.
+  const add = (type, periodKey, severity, message, evidence, detectedAt = asOf) => findings.push({ type, periodKey, severity, message, evidence: { ...evidence, asOf }, detectedAt });
   const { q4, march, start } = fyBounds(financialYear);
   const spent = transactions.reduce((sum, x) => sum + x.amountPaise, 0);
   const util = utilizationPct(spent, allocatedPaise);
-  const { elapsedPct } = positionAt(asOf);
+  const { elapsedPct, dayOfYear, daysInYear } = positionAt(asOf);
   const base = { utilizationPct: util, elapsedPct, spentPaise: spent, allocatedPaise };
 
   const u = t.underUtilization;
@@ -71,7 +76,7 @@ export function evaluate({ financialYear, allocatedPaise, asOf, transactions, hi
   const gap = round2(util - elapsedPct);
   if (elapsedPct >= t.pace.startElapsedPct && util <= 100 && Math.abs(gap) > t.pace.maxGapPts) {
     const behind = gap < 0;
-    const gapPaise = spent - Math.round((allocatedPaise * elapsedPct) / 100);
+    const gapPaise = spent - Math.round((allocatedPaise * dayOfYear) / daysInYear);
     add('pace_deviation', behind ? 'behind' : 'ahead', bySize(Math.abs(gap) - t.pace.maxGapPts, [10, 20]),
       `${Math.abs(gap)} points ${behind ? 'behind' : 'ahead of'} pace: ${util}% used with ${elapsedPct}% of the year gone, ${money(Math.abs(gapPaise))} ${behind ? 'unspent against' : 'over'} an even pace. The limit is ${t.pace.maxGapPts} points.`,
       { ...base, gapPts: gap, gapPaise, maxGapPts: t.pace.maxGapPts });
@@ -91,7 +96,7 @@ export function evaluate({ financialYear, allocatedPaise, asOf, transactions, hi
   const remainingPct = round2(100 - util);
   if (idleDays >= t.dormant.days && remainingPct > t.dormant.minRemainingPct) {
     add('dormant', `since-${lastSpend || 'start'}`, bySize(idleDays / t.dormant.days, [4 / 3, 2]),
-      `No spending for ${idleDays} days${lastSpend ? ` since ${lastSpend}` : ' since the year began'}, with ${remainingPct}% of the allocation unspent.`,
+      `No spending for ${idleDays} days${lastSpend ? ` since ${day(lastSpend)}` : ' since the year began'}, with ${remainingPct}% of the allocation unspent.`,
       { ...base, idleDays, lastSpendDate: lastSpend || null, remainingPct, ...t.dormant });
   }
 
@@ -112,15 +117,16 @@ export function evaluate({ financialYear, allocatedPaise, asOf, transactions, hi
   }
 
   // Sorting by amount and category puts candidate pairs next to each other.
-  const expenses = transactions
+  const expenses = events
     .filter((x) => x.kind === 'expense' && !x.reversed)
     .sort((a, b) => a.amountPaise - b.amountPaise || a.category.localeCompare(b.category) || a.date.localeCompare(b.date));
   for (let i = 1; i < expenses.length; i++) {
     const [a, b] = [expenses[i - 1], expenses[i]];
     if (a.amountPaise === b.amountPaise && a.category === b.category && daysBetween(a.date, b.date) <= t.duplicate.windowDays) {
       add('possible_duplicate', `${a.id}-${b.id}`, 'high',
-        `Two ${a.category} expenses of ${money(a.amountPaise)}, on ${a.date} and ${b.date}. Check that this was not paid twice.`,
-        { amountPaise: a.amountPaise, category: a.category, transactionIds: [a.id, b.id], dates: [a.date, b.date], windowDays: t.duplicate.windowDays });
+        `Two ${a.category} expenses of ${money(a.amountPaise)}, on ${day(a.date)} and ${day(b.date)}. Check that this was not paid twice.`,
+        { amountPaise: a.amountPaise, category: a.category, transactionIds: [a.id, b.id], dates: [a.date, b.date], windowDays: t.duplicate.windowDays },
+        b.date);
     }
   }
 
@@ -144,11 +150,12 @@ export function evaluate({ financialYear, allocatedPaise, asOf, transactions, hi
         { month, amountPaise: amount, medianPaise: Math.round(med), madPaise: Math.round(mad), z, zLimit: s.zLimit, historyMonths: prior.length });
     }
   }
-  for (const x of transactions) {
+  for (const x of events) {
     if (x.kind === 'expense' && !x.reversed && allocatedPaise > 0 && x.amountPaise > (allocatedPaise * s.singleTxnPct) / 100) {
       add('spike', `txn-${x.id}`, 'high',
-        `A single expense of ${money(x.amountPaise)} on ${x.date} is ${round2((x.amountPaise / allocatedPaise) * 100)}% of the allocation, above the ${s.singleTxnPct}% limit.`,
-        { transactionId: x.id, amountPaise: x.amountPaise, singleTxnPct: s.singleTxnPct });
+        `A single expense of ${money(x.amountPaise)} on ${day(x.date)} is ${round2((x.amountPaise / allocatedPaise) * 100)}% of the allocation, above the ${s.singleTxnPct}% limit.`,
+        { transactionId: x.id, amountPaise: x.amountPaise, singleTxnPct: s.singleTxnPct },
+        x.date);
     }
   }
 

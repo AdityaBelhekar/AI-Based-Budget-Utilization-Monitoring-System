@@ -79,7 +79,7 @@ export async function positionRows(user, view) {
       utilizationPct: util,
       elapsedPct: view.elapsedPct,
       gapPts,
-      gapPaise: spentPaise - Math.round((allocatedPaise * view.elapsedPct) / 100),
+      gapPaise: spentPaise - Math.round((allocatedPaise * view.dayOfYear) / view.daysInYear),
       paceLimitPts: limit,
       status,
       openAlerts: alertsBy.get(dept._id.toString())?.count ?? 0,
@@ -131,7 +131,8 @@ export function dashboardRoutes() {
         const at = [monthEnd(month), view.asOf].sort()[0];
         cumulative += totals.get(month) ?? 0;
         const allocatedPaise = budgets.reduce((s, b) => s + b.allocationAt(at), 0);
-        return { month, spentPaise: totals.get(month) ?? 0, cumulativePaise: cumulative, allocatedPaise, pacePaise: Math.round((allocatedPaise * positionAt(at).elapsedPct) / 100) };
+        const { dayOfYear, daysInYear } = positionAt(at);
+        return { month, spentPaise: totals.get(month) ?? 0, cumulativePaise: cumulative, allocatedPaise, pacePaise: Math.round((allocatedPaise * dayOfYear) / daysInYear) };
       });
     res.json({ financialYear: view.financialYear, months });
   });

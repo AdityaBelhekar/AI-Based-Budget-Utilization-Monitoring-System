@@ -64,6 +64,8 @@ export function createApp({ sessionSecret, production = false, clientDir, cronSe
   }
 
   app.use((err, _req, res, _next) => {
+    // A failure after the reply has gone out (a late session save, say) can only be logged.
+    if (res.headersSent) return console.error(err);
     if (err instanceof ZodError) return res.status(400).json({ error: 'Invalid input', issues: err.issues });
     if (err.code === 11000) return res.status(409).json({ error: 'That value is already in use' });
     if (err.name === 'ValidationError') return res.status(400).json({ error: err.message });

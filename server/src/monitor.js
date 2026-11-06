@@ -64,6 +64,7 @@ export async function scan({ filter = { financialYear: financialYearOf(todayInIn
       allocatedPaise: budget.allocationAt(at),
       asOf: at,
       transactions: own.filter((r) => r.date <= at),
+      events: own,
       history,
       thresholds: thresholds.for(dept),
     });
@@ -82,7 +83,7 @@ export async function scan({ filter = { financialYear: financialYearOf(todayInIn
   return { budgetsChecked: budgets.length, findings: results, raised, escalated };
 }
 
-async function saveFinding({ budget, type, periodKey, severity, message, evidence, asOf }) {
+async function saveFinding({ budget, type, periodKey, severity, message, evidence, detectedAt }) {
   const key = { budgetId: budget._id, type, periodKey };
   const existing = await Alert.findOne(key);
   if (!existing) {
@@ -95,7 +96,7 @@ async function saveFinding({ budget, type, periodKey, severity, message, evidenc
         severityRank: severityRank(severity),
         message,
         evidence,
-        detectedAt: asOf,
+        detectedAt,
         history: [{ at: new Date(), action: 'raised', severity }],
       });
       return 'raised';

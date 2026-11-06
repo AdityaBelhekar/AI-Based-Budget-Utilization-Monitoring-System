@@ -158,6 +158,15 @@ describe('alerts', () => {
 });
 
 describe('detection after a write', () => {
+  test('a repeated payment on a head fed by published figures is still caught', async () => {
+    const budget = await Budget.findOne({ financialYear: '2026-27', departmentId: petroleum._id, project: '' });
+    const send = () => agents.finance.post('/api/transactions').send({ budgetId: budget.id, date: '2026-10-20', amountPaise: 12_345_00, category: 'Services' }).expect(201);
+    await send();
+    await send();
+    const dup = await Alert.findOne({ budgetId: budget._id, type: 'possible_duplicate' });
+    assert.equal(dup.detectedAt, '2026-10-20', 'dated by the payment, not by the last published month');
+  });
+
   test('a repeated payment raises a possible-duplicate alert straight away', async () => {
     const budget = await Budget.create({ financialYear: '2026-27', departmentId: food._id, project: 'Warehousing', allocatedPaise: 1e12, revisions: [{ date: '2026-04-01', allocatedPaise: 1e12 }] });
     const parent = await Budget.findOne({ financialYear: '2026-27', departmentId: food._id, project: '' });
