@@ -70,20 +70,23 @@ foreach ($account in $accounts) {
   Set-Item -Path "env:$($account.Prefix)_PASSWORD" -Value $account.Password
 }
 $env:DEMO_HEAD_DEPARTMENT = 'PETROLEUM'
-npm run seed:users --prefix server
+$seedOutput = npm run seed:users --prefix server | Out-String
+Write-Host $seedOutput
 if ($LASTEXITCODE -ne 0) { Fail 'Creating the logins failed. See the message above.' }
+$accounts = @($accounts | Where-Object { $seedOutput -match [regex]::Escape($_.Email) })
 
 $lines = @('Budget Monitor: live-site logins', "Created $(Get-Date -Format 'yyyy-MM-dd HH:mm')", 'Only accounts that did not exist before this run were created with these passwords.', '')
 foreach ($account in $accounts) { $lines += "$($account.Role)`r`n  Email:    $($account.Email)`r`n  Password: $($account.Password)`r`n" }
-Set-Content -Path $loginsFile -Value $lines -Encoding UTF8
+if ($accounts.Count) { Set-Content -Path $loginsFile -Value $lines -Encoding UTF8 } else { Write-Host 'All three logins already existed, so deploy-logins.txt was left as it is.' }
 
 Write-Host ''
 Write-Host 'Step 4 of 4: Vercel settings and deployment' -ForegroundColor Cyan
+npx vercel whoami
+if ($LASTEXITCODE -ne 0) { Fail 'Sign in to Vercel when asked, then run this again.' }
 $settings = [ordered]@{ MONGODB_URI = $uri; SESSION_SECRET = (New-Secret 32); CRON_SECRET = (New-Secret 32) }
 foreach ($name in $settings.Keys) {
   # Replace any earlier value, so running this again is safe.
-  cmd /c "npx vercel env rm $name production --yes >nul 2>&1"
-  $settings[$name] | npx vercel env add $name production
+  $settings[$name] | npx vercel env add $name --environment production --sensitive --force --yes
   if ($LASTEXITCODE -ne 0) { Fail "Could not save $name in Vercel. See the message above." }
 }
 

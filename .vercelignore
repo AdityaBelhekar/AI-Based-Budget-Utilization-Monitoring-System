@@ -7,3 +7,4 @@ client/dist
 .env*
 deploy-logins.txt
 go-live.ps1
+set-database-url.ps1
