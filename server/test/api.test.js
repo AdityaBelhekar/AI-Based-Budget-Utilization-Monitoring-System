@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { hashPassword } from '../src/auth.js';
-import { Department, ROLES, User } from '../src/models.js';
+import { Department, ROLES, User, initModels } from '../src/models.js';
 
 const PASSWORD = 'test-password-long-enough';
 const makeApp = () => createApp({ sessionSecret: 'test-secret' });
@@ -22,6 +22,7 @@ async function signIn(email, target = app) {
 before(async () => {
   db = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(db.getUri('test'));
+  await initModels();
   app = makeApp();
   passwordHash = await hashPassword(PASSWORD);
   [deptA, deptB] = await Department.create([

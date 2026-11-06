@@ -9,6 +9,7 @@
     "start": "node src/index.js",
     "dev": "node --env-file=.env.example --watch src/dev.js",
     "seed:admin": "node src/seed-admin.js",
+    "seed:data": "node src/seed-data.js",
     "test": "node --test --test-force-exit \"test/*.test.js\""
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "express-session": "^1.19.0",
     "helmet": "^8.3.0",
     "mongoose": "^9.11.4",
+    "multer": "^2.5.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

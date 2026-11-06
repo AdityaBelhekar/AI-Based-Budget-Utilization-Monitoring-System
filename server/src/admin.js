@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
+import { writeAudit } from './audit.js';
 import { hashPassword, passwordSchema, requireRole } from './auth.js';
+import { HttpError, canSeeDepartment, isHead, objectId } from './http.js';
 import { Department, ROLES, User } from './models.js';
 
-const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const roleFields = { role: z.enum(Object.values(ROLES)), departmentId: objectId.nullable() };
 
 const userCreate = z
@@ -37,15 +39,11 @@ const departmentPatch = z
   .partial()
   .strict();
 
-class BadRequest extends Error {
-  status = 400;
-}
-
 // Only Department Heads belong to a department; anyone else's mapping is cleared.
 async function resolveDepartment(role, departmentId) {
   if (role !== ROLES.HEAD) return null;
-  if (!departmentId) throw new BadRequest('A Department Head must have a department');
-  if (!(await Department.exists({ _id: departmentId, active: true }))) throw new BadRequest('Unknown department');
+  if (!departmentId) throw new HttpError(400, 'A Department Head must have a department');
+  if (!(await Department.exists({ _id: departmentId, active: true }))) throw new HttpError(400, 'Unknown department');
   return departmentId;
 }
 
@@ -58,7 +56,12 @@ export function userRoutes() {
   router.post('/', async (req, res) => {
     const { password, ...body } = userCreate.parse(req.body);
     body.departmentId = await resolveDepartment(body.role, body.departmentId);
-    const user = await User.create({ ...body, passwordHash: await hashPassword(password) });
+    const passwordHash = await hashPassword(password);
+    const user = await mongoose.connection.transaction(async (session) => {
+      const [created] = await User.create([{ ...body, passwordHash }], { session });
+      await writeAudit(session, req.user, { action: 'create', entity: 'user', entityId: created._id, after: created.toJSON() });
+      return created;
+    });
     res.status(201).json(user);
   });
 
@@ -66,15 +69,26 @@ export function userRoutes() {
     const id = objectId.parse(req.params.id);
     const { password, ...changes } = userPatch.parse(req.body);
     const user = await User.findById(id);
-    if (!user) return res.status(404).json({ error: 'Not found' });
+    if (!user) throw new HttpError(404, 'Not found');
     // Blocking self-demotion means at least one working Admin always remains.
     if (user.id === req.user.id && (changes.active === false || (changes.role && changes.role !== ROLES.ADMIN))) {
-      throw new BadRequest('You cannot remove your own admin access');
+      throw new HttpError(400, 'You cannot remove your own admin access');
     }
+    const before = user.toJSON();
     user.set(changes);
     user.departmentId = await resolveDepartment(user.role, user.departmentId);
     if (password) user.passwordHash = await hashPassword(password);
-    await user.save();
+    await mongoose.connection.transaction(async (session) => {
+      await user.save({ session });
+      await writeAudit(session, req.user, {
+        action: 'update',
+        entity: 'user',
+        entityId: user._id,
+        before,
+        // The hash itself is never logged, only the fact that it changed.
+        after: { ...user.toJSON(), passwordChanged: Boolean(password) },
+      });
+    });
     res.json(user);
   });
 
@@ -83,32 +97,39 @@ export function userRoutes() {
 
 export function departmentRoutes() {
   const router = Router();
-  const isHead = (req) => req.user.role === ROLES.HEAD;
 
   router.get('/', async (req, res) => {
-    const filter = isHead(req) ? { _id: req.user.departmentId } : {};
+    const filter = isHead(req.user) ? { _id: req.user.departmentId } : {};
     res.json(await Department.find(filter).sort('name'));
   });
 
   router.get('/:id', async (req, res) => {
     const id = objectId.parse(req.params.id);
-    // Another department's record looks absent to a Department Head, so IDs cannot be probed.
-    const allowed = !isHead(req) || req.user.departmentId?.toString() === id.toLowerCase();
-    const department = allowed ? await Department.findById(id) : null;
-    if (!department) return res.status(404).json({ error: 'Not found' });
+    const department = canSeeDepartment(req.user, id.toLowerCase()) ? await Department.findById(id) : null;
+    if (!department) throw new HttpError(404, 'Not found');
     res.json(department);
   });
 
   router.post('/', requireRole(ROLES.ADMIN), async (req, res) => {
-    res.status(201).json(await Department.create(departmentCreate.parse(req.body)));
+    const body = departmentCreate.parse(req.body);
+    const department = await mongoose.connection.transaction(async (session) => {
+      const [created] = await Department.create([body], { session });
+      await writeAudit(session, req.user, { action: 'create', entity: 'department', entityId: created._id, after: created.toJSON() });
+      return created;
+    });
+    res.status(201).json(department);
   });
 
   // No delete route: departments with history are deactivated instead.
   router.patch('/:id', requireRole(ROLES.ADMIN), async (req, res) => {
     const department = await Department.findById(objectId.parse(req.params.id));
-    if (!department) return res.status(404).json({ error: 'Not found' });
+    if (!department) throw new HttpError(404, 'Not found');
+    const before = department.toJSON();
     department.set(departmentPatch.parse(req.body));
-    await department.save();
+    await mongoose.connection.transaction(async (session) => {
+      await department.save({ session });
+      await writeAudit(session, req.user, { action: 'update', entity: 'department', entityId: department._id, before, after: department.toJSON() });
+    });
     res.json(department);
   });
 
