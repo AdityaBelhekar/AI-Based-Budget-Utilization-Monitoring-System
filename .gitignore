@@ -7,3 +7,9 @@ dist/
 .vercel
 .env*
 deploy-logins.txt
+
+# Editor and AI-tool folders, and the video projects
+.agents/
+.claude/
+skills-lock.json
+videos/

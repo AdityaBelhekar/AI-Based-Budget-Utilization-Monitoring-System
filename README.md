@@ -1,6 +1,8 @@
 # Budget Utilization Monitor
 
-A MEAN stack app (Angular, Express, MongoDB) that tracks budget allocation against spending, flags money that is off pace, and keeps an audit trail of every change. Requirements and design are in the [PRD](https://claude.ai/artifact/VD9GBWmrNzNfG3n1h9524r).
+A MEAN stack app (Angular, Express, MongoDB) that tracks budget allocation against spending, flags money that is off pace, and keeps an audit trail of every change.
+
+**Live:** https://budget-monitor-eight.vercel.app. **How it works:** the [project report](docs/PROJECT_REPORT.md).
 
 The data is real: 90 months of Union Government figures (April 2019 to September 2026) from the Controller General of Accounts, in [`data/cga-monthly.csv`](data/cga-monthly.csv). Each row links to its source page, and `node data/extract-cga.mjs <cache folder>` rebuilds the file from cga.gov.in.
 
